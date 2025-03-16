@@ -455,6 +455,47 @@ body {
 
 
 
+/* Style for the options container */
+.options-container {
+    display: flex;
+    flex-direction: column;
+    gap: 10px; /* Space between options */
+    margin-top: 15px;
+}
+
+/* Style for each option */
+.option {
+    display: flex;
+    align-items: center;
+    background-color: #1e2a38;
+    color: white;
+    padding: 10px 15px;
+    border-radius: 5px;
+    border: 1px solid #4a90e2;
+    cursor: pointer;
+    transition: 0.3s ease-in-out;
+}
+
+.option:hover {
+    background-color: #4a90e2;
+}
+
+/* Hide default radio buttons */
+.option input[type="radio"] {
+    display: none;
+}
+
+/* Custom radio button */
+.option label {
+    width: 100%;
+    cursor: pointer;
+}
+
+/* Selected option effect */
+.option.selected {
+    background-color: #4a90e2;
+    border: 2px solid #ffffff;
+}
 
 
 

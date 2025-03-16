@@ -9,7 +9,6 @@ const usernameInput = document.getElementById('username');
 const backgroundSelect = document.getElementById('background');
 const resumeUpload = document.getElementById('resume');
 const resumeText = document.getElementById('resume-text');
-const startBtn = document.getElementById('start-btn');
 const timerElement = document.getElementById('timer');
 const progressBar = document.getElementById('progress');
 const codingQuizBtn = document.getElementById('coding-quiz-btn');
@@ -28,16 +27,18 @@ const submitCodeBtn = document.getElementById('submit-code-btn');
 const returnInterviewBtn = document.getElementById('return-interview-btn');
 
 // Global variables
+let userAnswers = []; // ✅ Store user's selected answers
+
 let username = '';
 let background = '';
 let resumeContent = '';
 let extractedSkills = [];
-const generalQuestionsAsked=false;
-let interviewDuration = 4 * 60; // 8 minutes in seconds
+let generalQuestionsAsked = false;
+let interviewDuration = 8 * 60; // 8 minutes in seconds
 let remainingTime = interviewDuration;
 let timerInterval;
 let codingTimerInterval;
-let codingRemainingTime = 2*60; // 4 minutes in seconds
+let codingRemainingTime = 2 * 60; // 4 minutes in seconds
 let speechRecognition;
 let isListening = false;
 let currentQuestionIndex = 0;
@@ -55,13 +56,13 @@ let isProcessingAnswer = false;
 // Initialize speech recognition
 function initSpeechRecognition() {
     window.SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    
+
     if (window.SpeechRecognition) {
         speechRecognition = new SpeechRecognition();
         speechRecognition.continuous = true;
         speechRecognition.interimResults = true;
         speechRecognition.lang = 'en-US';
-        
+
         // Create a temporary element to show what’s being recognized
         const tempTextElement = document.createElement('div');
         tempTextElement.className = 'message user-message temp-message';
@@ -171,7 +172,6 @@ async function initVoiceVisualization() {
     }
 }
 
-
 // Handle user answer submission
 function submitUserAnswer(text) {
     if (isProcessingAnswer || text.trim() === '') return;
@@ -205,42 +205,31 @@ function submitUserAnswer(text) {
     }, 1000);
 }
 
-
 function handleGeneralQuestionResponse(userResponse) {
     if (remainingTime <= 0) {
         endInterview();
         return;
     }
-
-    // ✅ Store the user response
-    interviewScore.answers.push({
-        question: generalQuestions[askedQuestions.size - 1], // Get last asked question
-        answer: userResponse,
-    });
-
     // ✅ Compliment user response
     const compliments = [
-        "That was a great response! 😊",
-        "I really liked your answer. 🌟",
-        "That’s an insightful response! 👍",
-        "Your answer was well-structured. 💡",
-        "That’s a fantastic way to put it! 🎯",
-        "I appreciate your thoughtfulness! 👏",
-        "You're doing great! 😃"
+        "That was a great response! You expressed yourself very well. 😊",
+        "I really liked your answer. You have a great perspective! 🌟",
+        "That’s an insightful response! It shows your experience and thoughtfulness. 👍",
+        "Your answer was well-structured and clear. Keep it up! 💡",
+        "I appreciate how you explained that! It was very thoughtful. 👏",
+        "That’s a fantastic way to put it! You have strong communication skills. 🎯",
+        "I can see your passion and dedication in that response. Great job! 🚀",
+        "Your response was detailed and to the point. I love the clarity! ✅",
+        "That’s an interesting take! You bring a unique perspective. 🔥",
+        "You're doing great! I really enjoyed hearing your thoughts. Keep going! 😃"
     ];
-    
     addBotMessage(compliments[Math.floor(Math.random() * compliments.length)]);
 
-    // ✅ Move to the next general question or show coding quiz
+    // ✅ Ask the next question after a short delay
     setTimeout(() => {
-        if (generalQuestionsCount < 3) {
-            askRandomGeneralQuestion();
-        } else {
-            showCodingQuizPrompt(); // ✅ Display the coding quiz button
-        }
+        askRandomGeneralQuestion();
     }, 2000);
 }
-
 
 // Initialize camera
 async function initCamera() {
@@ -254,12 +243,23 @@ async function initCamera() {
     }
 }
 
+// Timer functions
+let codingQuizTriggered = false; // ✅ Prevent multiple quiz prompts
+
+let quizTriggered = false; // ✅ Ensure quiz appears only once
+
 function startTimer() {
     updateTimerDisplay();
 
     timerInterval = setInterval(() => {
         remainingTime--;
         updateTimerDisplay();
+
+        // ✅ Show quiz exactly at 6-minute mark (240 seconds left)
+        if (remainingTime === 120 && !quizTriggered) {
+            quizTriggered = true;
+            waitForConversationToEndThenShowQuiz(); // ✅ Wait for user response, then show the quiz button
+        }
 
         // ✅ Update progress bar
         const progress = (1 - remainingTime / interviewDuration) * 100;
@@ -273,6 +273,20 @@ function startTimer() {
     }, 1000);
 }
 
+function waitForConversationToEndThenShowQuiz() {
+    if (isProcessingAnswer || isTyping) {
+        // ✅ If a conversation is happening, check again in 2 seconds
+        setTimeout(waitForConversationToEndThenShowQuiz, 2000);
+    } else {
+        // ✅ If the user has finished answering, first give a compliment
+        giveRandomCompliment();
+
+        // ✅ After the compliment, show the quiz button
+        setTimeout(() => {
+            showCodingQuizPrompt();
+        }, 2000); // ✅ Delay for a smoother transition
+    }
+}
 
 function updateTimerDisplay() {
     const minutes = Math.floor(remainingTime / 60);
@@ -285,7 +299,7 @@ function startCodingTimer() {
     codingTimerInterval = setInterval(() => {
         codingRemainingTime--;
         updateCodingTimerDisplay();
-        
+
         if (codingRemainingTime <= 0) {
             clearInterval(codingTimerInterval);
             submitCodingSolution();
@@ -309,14 +323,14 @@ function addBotMessage(text, delay = 0, speak = true) {
     typingIndicator.innerHTML = '<span></span><span></span><span></span>';
     chatMessages.appendChild(typingIndicator);
     chatMessages.scrollTop = chatMessages.scrollHeight;
-    
+
     setTimeout(() => {
         chatMessages.removeChild(typingIndicator); // Ensure it gets removed
-        
+
         // Create message container
         const messageElement = document.createElement('div');
         messageElement.className = 'message bot-message';
-        
+
         // ✅ Bot's Name (Header)
         const botNameElement = document.createElement('div');
         botNameElement.className = 'message-name';
@@ -325,10 +339,10 @@ function addBotMessage(text, delay = 0, speak = true) {
         // ✅ Message Text (Typing Effect)
         const messageTextElement = document.createElement('div');
         messageTextElement.className = 'message-text';
-        
+
         messageElement.appendChild(botNameElement); // Add Bot name
         messageElement.appendChild(messageTextElement); // Add text container
-        
+
         chatMessages.appendChild(messageElement);
         chatMessages.scrollTop = chatMessages.scrollHeight;
 
@@ -352,8 +366,6 @@ function addBotMessage(text, delay = 0, speak = true) {
     }, delay);
 }
 
-
-
 function addUserMessage(text) {
     if (!text || text.trim() === "") return; // Prevent empty messages
 
@@ -361,13 +373,13 @@ function addUserMessage(text) {
     function cleanText(inputText) {
         const meaninglessWords = ["um", "uh", "like", "you know", "sort of", "kind of", "basically", "actually", "literally", "stuff", "things"];
         let words = inputText.toLowerCase().split(/\s+/);
-        
+
         // Filter out meaningless words
         let cleanedWords = words.filter(word => !meaninglessWords.includes(word));
-        
+
         // Reconstruct the sentence
         let cleanedText = cleanedWords.join(" ").trim();
-        
+
         // Ensure first letter is capitalized and proper punctuation
         return cleanedText.charAt(0).toUpperCase() + cleanedText.slice(1) + (cleanedText.endsWith('.') ? '' : '.');
     }
@@ -405,9 +417,6 @@ function addUserMessage(text) {
     }
 }
 
-
-
-
 function speakText(text, callback = null) {
     if ('speechSynthesis' in window) {
         speechRecognition.stop(); // ✅ Stop recognition while bot speaks
@@ -431,7 +440,6 @@ function speakText(text, callback = null) {
     }
 }
 
-
 // Skills extraction
 function extractSkillsFromResume(text) {
     const commonSkills = [
@@ -444,16 +452,16 @@ function extractSkillsFromResume(text) {
         'UI/UX', 'Design', 'Project Management', 'Product Management',
         'SEO', 'Analytics', 'Leadership'
     ];
-    
+
     const foundSkills = [];
     const textLower = text.toLowerCase();
-    
+
     commonSkills.forEach(skill => {
         if (textLower.includes(skill.toLowerCase())) {
             foundSkills.push(skill);
         }
     });
-    
+
     // If no skills found, add some default ones based on background
     if (foundSkills.length === 0) {
         if (background === 'CSE') {
@@ -464,9 +472,10 @@ function extractSkillsFromResume(text) {
             foundSkills.push('Communication', 'Problem Solving', 'Teamwork', 'Critical Thinking');
         }
     }
-    
+
     return foundSkills;
 }
+
 const codingChallenges = [
     {
         title: "Find the Largest Number",
@@ -477,7 +486,7 @@ const codingChallenges = [
             "arr.reduce((a, b) => Math.max(a, b))",
             "arr[0]"
         ],
-        correct: "arr.reduce((a, b) => Math.max(a, b))"
+        correct: "Math.max(...arr)"
     },
     {
         title: "Check for Prime Numbers",
@@ -489,29 +498,86 @@ const codingChallenges = [
             "num * 2 !== num"
         ],
         correct: "num > 1 && ![...Array(num).keys()].slice(2).some(i => num % i === 0)"
+    },
+    {
+        title: "Reverse a String",
+        description: "Which method correctly reverses a string in JavaScript?",
+        options: [
+            "str.split('').reverse().join('')",
+            "str.reverse()",
+            "str[::-1]",
+            "reverse(str)"
+        ],
+        correct: "str.split('').reverse().join('')"
+    },
+    {
+        title: "Filter Even Numbers",
+        description: "Which method filters even numbers from an array?",
+        options: [
+            "arr.filter(n => n % 2 === 0)",
+            "arr.map(n => n % 2 === 0)",
+            "arr.every(n => n % 2 === 0)",
+            "arr.some(n => n % 2 === 0)"
+        ],
+        correct: "arr.filter(n => n % 2 === 0)"
+    },
+    {
+        title: "Sum of Array Elements",
+        description: "Which method correctly calculates the sum of an array?",
+        options: [
+            "arr.reduce((sum, n) => sum + n, 0)",
+            "arr.map(n => sum + n)",
+            "arr.filter(n => sum += n)",
+            "arr.every(n => sum + n)"
+        ],
+        correct: "arr.reduce((sum, n) => sum + n, 0)"
+    },
+    {
+        title: "Find Unique Elements",
+        description: "Which method correctly finds unique elements in an array?",
+        options: [
+            "[...new Set(arr)]",
+            "arr.unique()",
+            "arr.filter(n => arr.indexOf(n) === 1)",
+            "arr.distinct()"
+        ],
+        correct: "[...new Set(arr)]"
+    },
+    {
+        title: "Find the Index of an Element",
+        description: "Which method finds the index of an element in an array?",
+        options: [
+            "arr.indexOf(value)",
+            "arr.findIndex(value)",
+            "arr.getIndex(value)",
+            "arr.searchIndex(value)"
+        ],
+        correct: "arr.indexOf(value)"
+    },
+    {
+        title: "Remove Duplicates from Array",
+        description: "Which method removes duplicate elements from an array?",
+        options: [
+            "[...new Set(arr)]",
+            "arr.filter(n => arr.includes(n))",
+            "arr.map(n => n !== n)",
+            "arr.sort((a, b) => a - b)"
+        ],
+        correct: "[...new Set(arr)]"
+    },
+    {
+        title: "Check if an Array is Sorted",
+        description: "Which method correctly checks if an array is sorted?",
+        options: [
+            "arr.every((v, i, a) => !i || a[i - 1] <= v)",
+            "arr.sort() === arr",
+            "arr.all((a, b) => a < b)",
+            "arr.sorted()"
+        ],
+        correct: "arr.every((v, i, a) => !i || a[i - 1] <= v)"
     }
 ];
-let selectedAnswer = null; // ✅ Track user's answer
 
-function selectCodingAnswer(userChoice, correctAnswer) {
-    selectedAnswer = userChoice; // ✅ Save user's choice
-
-    // ✅ Highlight selection
-    const buttons = document.querySelectorAll(".option-button");
-    buttons.forEach(btn => {
-        btn.disabled = true; // Prevent multiple selections
-        if (btn.textContent === correctAnswer) {
-            btn.style.backgroundColor = "green"; // ✅ Highlight correct answer
-            btn.style.color = "white";
-        } else if (btn.textContent === userChoice) {
-            btn.style.backgroundColor = "red"; // ❌ Highlight incorrect answer
-            btn.style.color = "white";
-        }
-    });
-
-    // ✅ Delay before submission
-    setTimeout(submitCodingSolution, 2000);
-}
 
 function addBotMessageWithButton(text, buttonText, buttonId, buttonAction) {
     // Create message container
@@ -552,10 +618,7 @@ function showCodingQuizPrompt() {
         startCodingQuiz
     );
 }
-
-// Technical questions based on skills
 function generateTechnicalQuestions() {
-
     const questions = [];
 
     const followUpMessages = [
@@ -593,7 +656,7 @@ function generateTechnicalQuestions() {
         "Can you walk me through the process of implementing this from scratch?",
         "What’s the most challenging aspect of working with this?",
         "Can you explain a time when you had to troubleshoot an issue related to this?",
-        "What are some best practices you follow when using this?",
+        "What are some best practices you follow when using this in a project?",
         "How would you explain this to someone with no technical background?",
         "What are some real-world use cases where this technology is widely adopted?",
         "Can you suggest any improvements or enhancements for this technology?",
@@ -621,51 +684,37 @@ function generateTechnicalQuestions() {
         "If you were to mentor someone in this technology, how would you guide them?",
         "How do you ensure best practices are followed while using this in a project?"
     ];
-    
+    const usedQuestions = new Set(); // ✅ Store selected questions to avoid duplicates
+    let allAvailableQuestions = [];
 
-    // Store selected questions to avoid duplicates
-    const usedQuestions = new Set();
-
+    // ✅ Collect all relevant questions based on extracted skills
     extractedSkills.forEach(skill => {
         if (questionBank[skill]) {
-            let availableQuestions = questionBank[skill].filter(q => !usedQuestions.has(q.question));
-
-            if (availableQuestions.length > 0) {
-                let randomIndex = Math.floor(Math.random() * availableQuestions.length);
-                let selectedQuestion = availableQuestions[randomIndex];
-
-                // Mark this question as used
-                usedQuestions.add(selectedQuestion.question);
-
-                // Assign a random follow-up message
-                let randomFollowUp = followUpMessages[Math.floor(Math.random() * followUpMessages.length)];
-
-                questions.push({
-                    skill: skill,
-                    question: selectedQuestion.question,
-                    answer: selectedQuestion.answer, // ✅ Keep answer for later comparison
-                    followup: randomFollowUp
-                });
-            }
+            allAvailableQuestions = allAvailableQuestions.concat(questionBank[skill]);
         }
     });
 
-    // ✅ Ensure at least 5 questions are included
-    while (questions.length < 5 && questionBank['Default']) {
-        let availableDefaultQuestions = questionBank['Default'].filter(q => !usedQuestions.has(q.question));
+    // ✅ If not enough, add default questions
+    if (allAvailableQuestions.length < 10 && questionBank['Default']) {
+        allAvailableQuestions = allAvailableQuestions.concat(questionBank['Default']);
+    }
 
-        if (availableDefaultQuestions.length > 0) {
-            let randomIndex = Math.floor(Math.random() * availableDefaultQuestions.length);
-            let selectedQuestion = availableDefaultQuestions[randomIndex];
+    // ✅ Shuffle questions and pick 10 random ones
+    allAvailableQuestions = shuffleArray(allAvailableQuestions);
+    for (let i = 0; i < Math.min(10, allAvailableQuestions.length); i++) {
+        let selectedQuestion = allAvailableQuestions[i];
 
-            // Mark this question as used
+        if (!usedQuestions.has(selectedQuestion.question)) {
             usedQuestions.add(selectedQuestion.question);
 
+            // ✅ Assign a random follow-up question
+            let randomFollowUp = followUpMessages[Math.floor(Math.random() * followUpMessages.length)];
+
             questions.push({
-                skill: 'General',
+                skill: selectedQuestion.skill || "General",
                 question: selectedQuestion.question,
                 answer: selectedQuestion.answer, // ✅ Keep answer for later comparison
-                followup: "Can you provide more details or examples about that?"
+                followup: randomFollowUp
             });
         }
     }
@@ -673,7 +722,9 @@ function generateTechnicalQuestions() {
     return questions;
 }
 
-
+function shuffleArray(array) {
+    return array.sort(() => Math.random() - 0.5); // ✅ Shuffle array randomly
+}
 
 // Analysis functions
 function analyzeUserResponse(text) {
@@ -813,38 +864,38 @@ function analyzeCommunication(text) {
     
     const clarityCategories = {};
     let totalClarityPoints = 0;
-    
+
     for (const item of clarityPhrases) {
         // Look for the phrase with proper word boundaries
         const regex = new RegExp(`\\b${item.phrase.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
         const matches = text.match(regex) || [];
-        
+
         if (matches.length > 0) {
             // Avoid giving too many points for the same category
             const points = Math.min(matches.length, 2) * item.weight;
             totalClarityPoints += points;
-            
+
             // Track category usage
             clarityCategories[item.category] = (clarityCategories[item.category] || 0) + 1;
         }
     }
-    
+
     // Cap clarity bonus and add category diversity bonus
     const clarityBonus = Math.min(totalClarityPoints, 15);
     const categoryCount = Object.keys(clarityCategories).length;
     const diversityBonus = Math.min(categoryCount * 2, 10);
-    
+
     analysis.score += clarityBonus + diversityBonus;
-    
+
     if (totalClarityPoints > 0) {
         analysis.strengths.push(`Good use of clarity elements (${Object.keys(clarityCategories).join(", ")})`);
         analysis.metrics.clarityScore = totalClarityPoints;
     }
-    
+
     // Paragraph structure analysis
     const paragraphs = text.split(/\n\s*\n/).filter(p => p.trim().length > 0);
     analysis.metrics.paragraphCount = paragraphs.length;
-    
+
     if (wordCount > 50 && paragraphs.length === 1) {
         analysis.score -= 5;
         analysis.weaknesses.push("Text lacks paragraph breaks for readability");
@@ -852,7 +903,7 @@ function analyzeCommunication(text) {
         analysis.strengths.push("Good use of paragraph structure");
         analysis.score += Math.min(paragraphs.length, 3) * 2;
     }
-    
+
     // Use of filler words - more comprehensive list and weighted impact
     const fillerWords = [
         {word: "um", weight: 2},
@@ -871,11 +922,11 @@ function analyzeCommunication(text) {
         {word: "anyway", weight: 1, contextual: true},
         {word: "i guess", weight: 2}
     ];
-    
+
     let fillerCount = 0;
     let fillerPenalty = 0;
     const fillerFound = [];
-    
+
     for (const filler of fillerWords) {
         let regex;
         if (filler.contextual) {
@@ -884,7 +935,7 @@ function analyzeCommunication(text) {
         } else {
             regex = new RegExp(`\\b${filler.word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\b`, 'gi');
         }
-        
+
         const matches = text.match(regex) || [];
         if (matches.length > 0) {
             // Count each instance
@@ -893,7 +944,7 @@ function analyzeCommunication(text) {
             fillerFound.push(`${filler.word} (${matches.length})`);
         }
     }
-    
+
     // Adjust penalty based on text length - less severe for longer texts
     if (fillerCount > 0) {
         const normalizedPenalty = Math.round((fillerPenalty / Math.max(1, wordCount / 50)) * 2);
@@ -901,30 +952,30 @@ function analyzeCommunication(text) {
         analysis.weaknesses.push(`Contains filler words/phrases: ${fillerFound.join(", ")}`);
         analysis.metrics.fillerWordCount = fillerCount;
     }
-    
+
     // Tone and sentiment analysis (basic)
     const positiveWords = ["thank", "appreciate", "helpful", "great", "good", "excellent", 
                          "valuable", "clear", "effective", "efficient", "successful"];
     const negativeWords = ["unfortunately", "problem", "difficult", "confusing", "unclear",
                          "frustrating", "disappointing", "fail", "issue", "complicated"];
-    
+
     let positiveCount = 0;
     let negativeCount = 0;
-    
+
     for (const word of positiveWords) {
         const regex = new RegExp(`\\b${word}\\w*\\b`, 'gi'); // Match word roots
         const matches = text.match(regex) || [];
         positiveCount += matches.length;
     }
-    
+
     for (const word of negativeWords) {
         const regex = new RegExp(`\\b${word}\\w*\\b`, 'gi');
         const matches = text.match(regex) || [];
         negativeCount += matches.length;
     }
-    
+
     analysis.metrics.toneBalance = { positive: positiveCount, negative: negativeCount };
-    
+
     // Question analysis - engagement indicator
     const questions = (text.match(/\?/g) || []).length;
     if (questions > 0 && questions <= 3) {
@@ -934,13 +985,13 @@ function analyzeCommunication(text) {
         analysis.score -= 3;
         analysis.weaknesses.push("Excessive use of questions may indicate uncertainty");
     }
-    
+
     // Readability estimate (very basic approximation)
     const sentenceCount = text.split(/[.!?]+/).filter(s => s.trim().length > 0).length;
     if (sentenceCount > 0) {
         const avgWordsPerSentence = wordCount / sentenceCount;
         analysis.metrics.avgSentenceLength = Math.round(avgWordsPerSentence * 10) / 10;
-        
+
         if (avgWordsPerSentence > 25) {
             analysis.score -= 5;
             analysis.weaknesses.push("Sentences may be too long (average " + 
@@ -953,11 +1004,9 @@ function analyzeCommunication(text) {
             analysis.strengths.push("Good sentence length for readability");
         }
     }
-    
+
     // Cap the score between 0-100
     return Math.max(Math.min(Math.round(analysis.score), 100), 0);
-    
-    
 }
 
 // Mock technical answer evaluation
@@ -1002,7 +1051,6 @@ function analyzeTechnical(userText, questionIndex) {
     // ✅ Ensure score is between 0 and 100
     return Math.max(Math.min(score, 100), 0);
 }
-
 
 // Process user response and determine next steps
 function processUserResponse(text) {
@@ -1110,7 +1158,6 @@ function processUserResponse(text) {
             "🏗 This is a stepping stone! Every challenge helps you grow."
         ]
     };
-    
 
     // ✅ Select a random compliment based on score range
     let compliment;
@@ -1180,37 +1227,103 @@ function processUserResponse(text) {
 }
 
 // Start coding quiz
+let currentCodingQuestionIndex = 0;
+let selectedcodingAnswer = null;
+
+
+// ✅ Function to start the coding quiz
 function startCodingQuiz() {
-    clearInterval(timerInterval); // ✅ Pause main interview timer
-    interviewContainer.classList.add('hidden');
-    codingContainer.classList.remove('hidden');
+    document.getElementById("interview-container").classList.add("hidden");
+    document.getElementById("coding-container").classList.remove("hidden");
     
-    // ✅ Select a random coding quiz question
-    const challenge = codingChallenges[Math.floor(Math.random() * codingChallenges.length)];
-    problemTitle.textContent = `Problem: ${challenge.title}`;
-    problemDescription.textContent = challenge.description;
-    
-    // ✅ Clear previous options
+    // ✅ Load first question
+
+    loadCodingQuestion();
+    startCodingTimer();
+}
+
+// ✅ Function to load a coding question
+function loadCodingQuestion() {
+    const question = codingChallenges[currentCodingQuestionIndex];
+
+    document.getElementById("problem-title").textContent = `Problem: ${question.title}`;
+    document.getElementById("problem-description").textContent = question.description;
+
+    // ✅ Generate multiple-choice options
     const optionsContainer = document.getElementById("options-container");
     optionsContainer.innerHTML = "";
-
-    // ✅ Display multiple-choice options
-    challenge.options.forEach((option, index) => {
-        const button = document.createElement("button");
-        button.textContent = option;
-        button.classList.add("option-button");
-        button.onclick = () => selectCodingAnswer(option, challenge.correct);
-        optionsContainer.appendChild(button);
+    
+    question.options.forEach(option => {
+        const optionElement = document.createElement("div");
+        optionElement.classList.add("option");
+        optionElement.innerHTML = `
+            <input type="radio" name="coding-option" value="${option}">
+            <label>${option}</label>
+        `;
+        optionElement.onclick = () => selectAnswer(option);
+        optionsContainer.appendChild(optionElement);
     });
 
-    // ✅ Start coding timer
-    startCodingTimer();
+    // ✅ Show "Submit" button for the last question
+    if (currentCodingQuestionIndex === codingChallenges.length - 1) {
+        document.getElementById("next-btn").classList.add("hidden");
+        document.getElementById("submit-btn").classList.remove("hidden");
+    } else {
+        document.getElementById("next-btn").classList.remove("hidden");
+        document.getElementById("submit-btn").classList.add("hidden");
+    }
+}
+
+// ✅ Function to handle answer selection
+function selectAnswer(option) {
+    selectedcodingAnswer = option;
+    userAnswers[currentCodingQuestionIndex] = option; // ✅ Store user's answer
+
+    document.querySelectorAll(".option").forEach(opt => opt.classList.remove("selected"));
+    event.currentTarget.classList.add("selected");
+}
+
+
+// ✅ Function to load the next question
+function nextQuestion() {
+    if (currentCodingQuestionIndex < codingChallenges.length - 1) {
+        currentCodingQuestionIndex++;
+        loadCodingQuestion();
+    }
+}
+
+// ✅ Function to submit the quiz
+function submitQuiz() {
+    if (!selectedcodingAnswer) {
+        alert("Please select an answer before submitting.");
+        return;
+    }
+
+    // ✅ Calculate score based on correct answers
+    let codingScore = 0;
+    for (let i = 0; i < codingChallenges.length; i++) {
+        if (userAnswers[i] === codingChallenges[i].correct) {
+            codingScore += (100 / codingChallenges.length); // ✅ Evenly distribute marks
+        }
+    }
+
+    // ✅ Update interview score
+    interviewScore.coding = Math.round(codingScore); // ✅ Round to nearest whole number
+
+    document.getElementById("coding-container").classList.add("hidden");
+    document.getElementById("interview-container").classList.remove("hidden");
+
+    alert(`✅ Your coding quiz submission has been recorded!`);
+
+    // ✅ Generate final report
+    setTimeout(() => {
+        endInterview();
+    }, 2000);
 }
 
 
 // Submit coding solution
 let askedQuestions = new Set(); // Track asked questions
-
 
 const generalQuestions = [
     "Can you tell me a little about yourself?",
@@ -1225,38 +1338,30 @@ const generalQuestions = [
     "Do you have any questions for me about the company or role?"
 ];
 
-let generalQuestionsCount = 0; // ✅ Track how many general questions were asked
-
 function askRandomGeneralQuestion() {
     if (remainingTime <= 0) {
         endInterview();
         return;
     }
 
-    if (generalQuestionsCount < 3) {
-        generalQuestionsCount++; // ✅ Increase the count
-
-        // ✅ Pick a random question that hasn't been asked
-        let randomIndex;
-        do {
-            randomIndex = Math.floor(Math.random() * generalQuestions.length);
-        } while (askedQuestions.has(randomIndex));
-
-        askedQuestions.add(randomIndex);
-
-        // ✅ Ask the question and wait for response
-        addBotMessage(generalQuestions[randomIndex]);
-    } else {
-        // ✅ After 3 questions, show the coding quiz prompt
-        setTimeout(() => {
-            showCodingQuizPrompt();
-        }, 2000);
+    // ✅ Check if all questions are asked
+    if (askedQuestions.size >= generalQuestions.length) {
+        addBotMessage("That was a great conversation! We've covered everything. Thank you for your time! 😊");
+        setTimeout(() => showCodingQuizPrompt(), 3000);
+        return;
     }
+
+    // ✅ Pick a random question that hasn't been asked
+    let randomIndex;
+    do {
+        randomIndex = Math.floor(Math.random() * generalQuestions.length);
+    } while (askedQuestions.has(randomIndex));
+
+    askedQuestions.add(randomIndex);
+
+    // ✅ Ask the question and wait for response
+    addBotMessage(generalQuestions[randomIndex]);
 }
-
-
-
-
 
 // Start the process after the coding section
 function submitCodingSolution() {
@@ -1285,10 +1390,6 @@ function submitCodingSolution() {
         endInterview();
     }, 3000);
 }
-
-
-
-
 
 // End interview and show report
 function endInterview() {
@@ -1410,7 +1511,6 @@ function animateScore(scoreId, barId, finalScore) {
     }, 20); // Update every 20ms for a smooth effect
 }
 
-
 // Feedback generator functions
 function getTechnicalFeedback(score) {
     if (score >= 90) {
@@ -1501,9 +1601,8 @@ function getImprovementTips(technical, communication, grammar, coding) {
 function startListening() {
     if (!speechRecognition) return;
 
-    // ✅ Prevents mic from turning on while bot is speaking
     if (window.speechSynthesis.speaking) {
-        setTimeout(startListening, 500); // Check again after 0.5 seconds
+        setTimeout(startListening, 500);
         return;
     }
 
@@ -1513,7 +1612,7 @@ function startListening() {
     micBtn.classList.add("active");
 
     let finalTranscript = "";
-    let silenceTimeout; // Track user's silence
+    let silenceTimeout;
 
     speechRecognition.onresult = (event) => {
         let interimTranscript = "";
@@ -1529,15 +1628,18 @@ function startListening() {
             }
         }
 
-        // ✅ Detect when user is silent for 3 seconds
         clearTimeout(silenceTimeout);
         silenceTimeout = setTimeout(() => {
             if (finalTranscript.trim() !== "" && userInput.value === finalTranscript) {
-                submitUserAnswer(finalTranscript);
+                if (!introAnswered) {
+                    handleIntroduction(finalTranscript); // ✅ Handle introduction separately
+                } else {
+                    submitUserAnswer(finalTranscript); // ✅ Process technical answers normally
+                }
                 finalTranscript = "";
                 userInput.value = "";
             }
-        }, 3000); // ✅ 3 seconds of silence = User has finished answering
+        }, 3000);
     };
 
     speechRecognition.onend = () => {
@@ -1545,7 +1647,6 @@ function startListening() {
         micBtn.innerHTML = '<i class="mic-icon">🎤</i>';
         micBtn.classList.remove("active");
 
-        // ✅ Restart recognition ONLY if bot is not speaking
         setTimeout(() => {
             if (remainingTime > 0 && !isProcessingAnswer && !window.speechSynthesis.speaking) {
                 speechRecognition.start();
@@ -1561,12 +1662,56 @@ function startListening() {
         micBtn.innerHTML = '<i class="mic-icon">🎤</i>';
         micBtn.classList.remove("active");
 
-        // ✅ Restart speech recognition if the interview is ongoing
         if (remainingTime > 0 && !isProcessingAnswer) {
             setTimeout(() => speechRecognition.start(), 1000);
         }
     };
 }
+
+function askNextQuestion() {
+    if (currentQuestionIndex < questions.length) {
+        const question = questions[currentQuestionIndex];
+        currentQuestionIndex++;
+
+        addBotMessage(question.question);
+
+        setTimeout(() => {
+            startListening();
+        }, 1000);
+     // ✅ Move to General Questions
+    } else {
+        showCodingQuizPrompt(); // ✅ Show coding quiz button
+    }
+}
+function handleIntroduction(text) {
+    if (!text || text.trim() === "") return; // ✅ Prevent empty responses
+
+    addUserMessage(text); // ✅ Show user response in chat
+
+    setTimeout(() => {
+        // ✅ Give a simple compliment
+        const compliments = [
+            "That was a great introduction! 😊",
+            "You spoke well about yourself. 👍",
+            "Nice response! Let's move forward. 🚀",
+            "Great! Now, let's start the technical questions. 🎯",
+            "I appreciate your introduction! Now let's begin. 🌟"
+        ];
+    
+        const compliment = compliments[Math.floor(Math.random() * compliments.length)];
+        addBotMessage(compliment);
+
+        // ✅ Mark introduction as answered and proceed to technical questions
+        introAnswered = true;
+
+        setTimeout(() => {
+            addBotMessage("Now, let's start with the technical questions.");
+            askNextQuestion(); // ✅ Start technical questions after submitting intro response
+        }, 3000);
+    }, 1000); // ✅ Allow time for the response to appear before moving forward
+}
+
+
 
 // Event listeners
 document.addEventListener('DOMContentLoaded', () => {
@@ -1679,41 +1824,20 @@ document.addEventListener('DOMContentLoaded', () => {
     
         // ✅ Step 4: Speak and display the first question
         setTimeout(() => {
-            askNextQuestion();
+            addBotMessage("Before we start with technical questions, tell me about yourself.");
             // ✅ Step 5: Enable mic 1 second after the question is spoken
             setTimeout(() => {
                 startListening(); // ✅ Start listening instead of reinitializing speech recognition
-            }, 1000);
+            }, 2000);
     
         }, 12000); // ✅ Wait for transition message to finish
     
         // ✅ Start the interview timer after everything is set up
         setTimeout(() => {
             startTimer();
-        }, 14000);
+        }, 12000);
     }
     
-    
-    function askNextQuestion() {
-        if (remainingTime <= 0) {
-            endInterview();
-            return;
-        }
-    
-        if (currentQuestionIndex < questions.length) {
-            // ✅ Ask technical questions first
-            const question = questions[currentQuestionIndex];
-            currentQuestionIndex++;
-            addBotMessage(question.question);
-            
-            setTimeout(startListening, 1000);
-        } else {
-            // ✅ All technical questions are done, now show the coding quiz
-            setTimeout(() => {
-                showCodingQuizPrompt();
-            }, 2000); // ✅ Small delay for a smooth transition
-        }
-    }
     
     
     // Handle mic button
@@ -1755,11 +1879,6 @@ document.addEventListener('DOMContentLoaded', () => {
         alert('Code execution would be implemented here in a real application.');
     });
     
-    // Submit code button
-    submitCodeBtn.addEventListener('click', ()=>{
-        submitCodingSolution();
-        codingQuizBtn.classList.add('hidden');
-    });
     
     
     // Return to interview button
@@ -1774,3 +1893,7 @@ document.addEventListener('DOMContentLoaded', () => {
         location.reload();
     });
 });
+
+// ✅ Make functions globally available
+window.nextQuestion = nextQuestion;
+window.submitQuiz = submitQuiz;
