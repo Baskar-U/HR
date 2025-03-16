@@ -30,6 +30,7 @@ const returnInterviewBtn = document.getElementById('return-interview-btn');
 let userAnswers = []; // ✅ Store user's selected answers
 
 let username = '';
+let introAnswered=false;
 let background = '';
 let resumeContent = '';
 let extractedSkills = [];
@@ -1368,7 +1369,7 @@ function submitCodingSolution() {
     clearInterval(codingTimerInterval); // ✅ Stop the quiz timer
 
     // ✅ Ensure user selected an answer
-    if (!selectedAnswer) {
+    if (!selectedcodingAnswer) {
         alert("Please select an answer before submitting.");
         return;
     }
@@ -1601,9 +1602,8 @@ function getImprovementTips(technical, communication, grammar, coding) {
 function startListening() {
     if (!speechRecognition) return;
 
-    // ✅ Prevents mic from turning on while bot is speaking
     if (window.speechSynthesis.speaking) {
-        setTimeout(startListening, 500); // Check again after 0.5 seconds
+        setTimeout(startListening, 500);
         return;
     }
 
@@ -1613,7 +1613,7 @@ function startListening() {
     micBtn.classList.add("active");
 
     let finalTranscript = "";
-    let silenceTimeout; // Track user's silence
+    let silenceTimeout;
 
     speechRecognition.onresult = (event) => {
         let interimTranscript = "";
@@ -1629,15 +1629,18 @@ function startListening() {
             }
         }
 
-        // ✅ Detect when user is silent for 3 seconds
         clearTimeout(silenceTimeout);
         silenceTimeout = setTimeout(() => {
             if (finalTranscript.trim() !== "" && userInput.value === finalTranscript) {
-                submitUserAnswer(finalTranscript);
+                if (!introAnswered) {
+                    handleIntroduction(finalTranscript); // ✅ Handle introduction separately
+                } else {
+                    submitUserAnswer(finalTranscript); // ✅ Process technical answers normally
+                }
                 finalTranscript = "";
                 userInput.value = "";
             }
-        }, 3000); // ✅ 3 seconds of silence = User has finished answering
+        }, 3000);
     };
 
     speechRecognition.onend = () => {
@@ -1645,7 +1648,6 @@ function startListening() {
         micBtn.innerHTML = '<i class="mic-icon">🎤</i>';
         micBtn.classList.remove("active");
 
-        // ✅ Restart recognition ONLY if bot is not speaking
         setTimeout(() => {
             if (remainingTime > 0 && !isProcessingAnswer && !window.speechSynthesis.speaking) {
                 speechRecognition.start();
@@ -1661,12 +1663,50 @@ function startListening() {
         micBtn.innerHTML = '<i class="mic-icon">🎤</i>';
         micBtn.classList.remove("active");
 
-        // ✅ Restart speech recognition if the interview is ongoing
         if (remainingTime > 0 && !isProcessingAnswer) {
             setTimeout(() => speechRecognition.start(), 1000);
         }
     };
 }
+
+function askNextQuestion() {
+    if (currentQuestionIndex < questions.length) {
+        const question = questions[currentQuestionIndex];
+        currentQuestionIndex++;
+
+        addBotMessage(question.question);
+
+        setTimeout(() => {
+            startListening();
+        }, 1000);
+     // ✅ Move to General Questions
+    } else {
+        showCodingQuizPrompt(); // ✅ Show coding quiz button
+    }
+}
+function handleIntroduction(text) {
+    addUserMessage(text); // ✅ Show user response in chat
+
+    // ✅ Give a simple compliment
+    const compliments = [
+        "That was a great introduction! 😊",
+        "You spoke well about yourself. 👍",
+        "Nice response! Let's move forward. 🚀",
+        "Great! Now, let's start the technical questions. 🎯",
+        "I appreciate your introduction! Now let's begin. 🌟"
+    ];
+    
+    const compliment = compliments[Math.floor(Math.random() * compliments.length)];
+    addBotMessage(compliment);
+
+    // ✅ Transition to technical questions
+    setTimeout(() => {
+        addBotMessage("Now, let's start with the technical questions.");
+        introAnswered = true;
+        setTimeout(askNextQuestion, 3000);
+    }, 3000);
+}
+
 
 // Event listeners
 document.addEventListener('DOMContentLoaded', () => {
@@ -1779,7 +1819,7 @@ document.addEventListener('DOMContentLoaded', () => {
     
         // ✅ Step 4: Speak and display the first question
         setTimeout(() => {
-            askNextQuestion();
+            addBotMessage("Before we start with technical questions, tell me about yourself.");
             // ✅ Step 5: Enable mic 1 second after the question is spoken
             setTimeout(() => {
                 startListening(); // ✅ Start listening instead of reinitializing speech recognition
@@ -1793,21 +1833,7 @@ document.addEventListener('DOMContentLoaded', () => {
         }, 14000);
     }
     
-    function askNextQuestion() {
-        if (currentQuestionIndex < questions.length) {
-            const question = questions[currentQuestionIndex];
-            currentQuestionIndex++;
     
-            addBotMessage(question.question);
-    
-            setTimeout(() => {
-                startListening();
-            }, 1000);
-         // ✅ Move to General Questions
-        } else {
-            showCodingQuizPrompt(); // ✅ Show coding quiz button
-        }
-    }
     
     // Handle mic button
     micBtn.addEventListener('click', () => {
